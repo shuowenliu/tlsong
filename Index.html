@@ -192,237 +192,228 @@
     <button onclick="importCsv()">🚀 匯入歌曲</button>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
-    // 1. 確保函式庫先載入
-    const supabaselib = document.createElement('script');
-    supabaselib.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-    document.head.appendChild(supabaselib);
+    let songs = [];
+    let currentPage = 1;
+    const pageSize = 10;
+    let sortKey = "";
+    let sortAsc = true;
+    
+    // ⭐ 請將你的 Supabase URL 和 Key 貼在這裡
+    const SUPABASE_URL = 'https://qcvkwglzltebvajvyakm.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go';
+    
+    const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const papaparsetlib = document.createElement('script');
-    papaparsetlib.src = "https://unpkg.com/papaparse@5.4.1/papaparse.min.js";
-    document.head.appendChild(papaparsetlib);
+    // 🚀 從 Supabase 載入歌曲
+    async function loadSongs() {
+        const { data, error } = await supabase
+            .from('songs')
+            .select('*');
+        
+        if (error) {
+            console.error('載入歌曲失敗:', error);
+            alert('載入歌曲失敗，請檢查 Supabase 設定！');
+        } else {
+            songs = data || [];
+            render();
+        }
+    }
 
-    // 2. 在文件載入完成後再執行你的程式碼
-    window.onload = function() {
-      let songs = [];
-      let currentPage = 1;
-      const pageSize = 10;
-      let sortKey = "";
-      let sortAsc = true;
-      
-      // ⭐ 請將你的 Supabase URL 和 Key 貼在這裡
-      const SUPABASE_URL = 'https://qcvkwglzltebvajvyakm.supabase.co';
-      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go';
-      
-      const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // ⭐ 新增 CSV 匯入函式
+    async function importCsv() {
+        const fileInput = document.getElementById('csvFile');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert('請選擇一個 CSV 檔案！');
+            return;
+        }
 
-      // 🚀 從 Supabase 載入歌曲
-      async function loadSongs() {
-          const { data, error } = await supabase
-              .from('songs')
-              .select('*');
-          
-          if (error) {
-              console.error('載入歌曲失敗:', error);
-              alert('載入歌曲失敗，請檢查 Supabase 設定！');
-          } else {
-              songs = data || [];
-              render();
-          }
-      }
+        // 使用 Papaparse 解析 CSV 檔案
+        Papa.parse(file, {
+            header: true, // 將第一行視為欄位名稱
+            skipEmptyLines: true,
+            complete: async function(results) {
+                const dataToInsert = results.data.map(row => ({
+                    name: row.name,
+                    bpm: parseInt(row.bpm) || 0,
+                    lang: row.lang,
+                    style: row.style
+                }));
 
-      // ⭐ 新增 CSV 匯入函式
-      async function importCsv() {
-          const fileInput = document.getElementById('csvFile');
-          const file = fileInput.files[0];
-          
-          if (!file) {
-              alert('請選擇一個 CSV 檔案！');
-              return;
-          }
+                if (dataToInsert.length === 0) {
+                    alert('CSV 檔案中沒有找到任何歌曲資料。');
+                    return;
+                }
 
-          // 使用 Papaparse 解析 CSV 檔案
-          Papa.parse(file, {
-              header: true, // 將第一行視為欄位名稱
-              skipEmptyLines: true,
-              complete: async function(results) {
-                  const dataToInsert = results.data.map(row => ({
-                      name: row.name,
-                      bpm: parseInt(row.bpm) || 0,
-                      lang: row.lang,
-                      style: row.style
-                  }));
+                // 將資料批量插入 Supabase
+                const { data, error } = await supabase
+                    .from('songs')
+                    .insert(dataToInsert);
 
-                  if (dataToInsert.length === 0) {
-                      alert('CSV 檔案中沒有找到任何歌曲資料。');
-                      return;
-                  }
+                if (error) {
+                    alert('匯入失敗：' + error.message);
+                    console.error('匯入錯誤:', error);
+                } else {
+                    alert(`成功匯入 ${dataToInsert.length} 筆歌曲！`);
+                    loadSongs(); // 重新載入列表
+                    fileInput.value = ''; // 清空檔案選擇
+                }
+            }
+        });
+    }
 
-                  // 將資料批量插入 Supabase
-                  const { data, error } = await supabase
-                      .from('songs')
-                      .insert(dataToInsert);
+    // 💾 儲存歌曲
+    async function saveSong() {
+        const songId = document.getElementById("songId").value;
+        const songName = document.getElementById("songName").value.trim();
+        const songBpm = parseInt(document.getElementById("songBpm").value) || 0;
+        const songLang = document.getElementById("songLang").value;
+        const songStyle = document.getElementById("songStyle").value;
 
-                  if (error) {
-                      alert('匯入失敗：' + error.message);
-                      console.error('匯入錯誤:', error);
-                  } else {
-                      alert(`成功匯入 ${dataToInsert.length} 筆歌曲！`);
-                      loadSongs(); // 重新載入列表
-                      fileInput.value = ''; // 清空檔案選擇
-                  }
-              }
-          });
-      }
+        if (!songName) return alert("請輸入歌名");
 
-      // 💾 儲存歌曲
-      async function saveSong() {
-          const songId = document.getElementById("songId").value;
-          const songName = document.getElementById("songName").value.trim();
-          const songBpm = parseInt(document.getElementById("songBpm").value) || 0;
-          const songLang = document.getElementById("songLang").value;
-          const songStyle = document.getElementById("songStyle").value;
+        const newSong = {
+            name: songName,
+            bpm: songBpm,
+            lang: songLang,
+            style: songStyle
+        };
+        
+        let result;
+        if (songId) {
+            result = await supabase
+                .from('songs')
+                .update(newSong)
+                .eq('id', songId);
+        } else {
+            result = await supabase
+                .from('songs')
+                .insert(newSong);
+        }
 
-          if (!songName) return alert("請輸入歌名");
+        if (result.error) {
+            alert('儲存失敗：' + result.error.message);
+        } else {
+            clearForm();
+            loadSongs();
+        }
+    }
 
-          const newSong = {
-              name: songName,
-              bpm: songBpm,
-              lang: songLang,
-              style: songStyle
-          };
-          
-          let result;
-          if (songId) {
-              result = await supabase
-                  .from('songs')
-                  .update(newSong)
-                  .eq('id', songId);
-          } else {
-              result = await supabase
-                  .from('songs')
-                  .insert(newSong);
-          }
+    // ✏️ 編輯歌曲
+    function editSong(id) {
+        const song = songs.find(s => s.id === id);
+        if (!song) return;
+        document.getElementById("songId").value = song.id;
+        document.getElementById("songName").value = song.name;
+        document.getElementById("songBpm").value = song.bpm;
+        document.getElementById("songLang").value = song.lang;
+        document.getElementById("songStyle").value = song.style;
+    }
 
-          if (result.error) {
-              alert('儲存失敗：' + result.error.message);
-          } else {
-              clearForm();
-              loadSongs();
-          }
-      }
+    // 🗑 刪除歌曲
+    async function deleteSong(id) {
+        if (!confirm("確定要刪除嗎？")) return;
+        
+        const { error } = await supabase
+            .from('songs')
+            .delete()
+            .eq('id', id);
+        
+        if (error) {
+            alert('刪除失敗：' + error.message);
+        } else {
+            loadSongs();
+        }
+    }
 
-      // ✏️ 編輯歌曲
-      function editSong(id) {
-          const song = songs.find(s => s.id === id);
-          if (!song) return;
-          document.getElementById("songId").value = song.id;
-          document.getElementById("songName").value = song.name;
-          document.getElementById("songBpm").value = song.bpm;
-          document.getElementById("songLang").value = song.lang;
-          document.getElementById("songStyle").value = song.style;
-      }
+    // 🧹 清空表單
+    function clearForm() {
+        document.getElementById("songId").value = "";
+        document.getElementById("songName").value = "";
+        document.getElementById("songBpm").value = "";
+        document.getElementById("songLang").value = "中文";
+        document.getElementById("songStyle").value = "情歌";
+    }
 
-      // 🗑 刪除歌曲
-      async function deleteSong(id) {
-          if (!confirm("確定要刪除嗎？")) return;
-          
-          const { error } = await supabase
-              .from('songs')
-              .delete()
-              .eq('id', id);
-          
-          if (error) {
-              alert('刪除失敗：' + error.message);
-          } else {
-              loadSongs();
-          }
-      }
+    // 🎨 渲染歌曲清單
+    function render() {
+        const search = document.getElementById("search").value.toLowerCase().trim();
+        const filterLang = document.getElementById("filterLang").value.toLowerCase().trim();
+        const filterStyle = document.getElementById("filterStyle").value.toLowerCase().trim();
+        const filterBpm = document.getElementById("filterBpm").value;
 
-      // 🧹 清空表單
-      function clearForm() {
-          document.getElementById("songId").value = "";
-          document.getElementById("songName").value = "";
-          document.getElementById("songBpm").value = "";
-          document.getElementById("songLang").value = "中文";
-          document.getElementById("songStyle").value = "情歌";
-      }
+        let filtered = songs.filter(s => {
+            let ok = true;
+            const name = (s.name || "").toLowerCase().trim();
+            const lang = (s.lang || "").toLowerCase().trim();
+            const style = (s.style || "").toLowerCase().trim();
+            const bpm = Number(s.bpm) || 0;
+            if (search && !(name.includes(search) || lang.includes(search) || style.includes(search))) ok = false;
+            if (filterLang && lang !== filterLang) ok = false;
+            if (filterStyle && style !== filterStyle) ok = false;
+            if (filterBpm) {
+                const [min, max] = filterBpm.split("–").map(Number);
+                if (!(bpm >= min && bpm <= max)) ok = false;
+            }
+            return ok;
+        });
 
-      // 🎨 渲染歌曲清單
-      function render() {
-          const search = document.getElementById("search").value.toLowerCase().trim();
-          const filterLang = document.getElementById("filterLang").value.toLowerCase().trim();
-          const filterStyle = document.getElementById("filterStyle").value.toLowerCase().trim();
-          const filterBpm = document.getElementById("filterBpm").value;
+        if (sortKey) {
+            filtered.sort((a, b) => {
+                if (a[sortKey] < b[sortKey]) return sortAsc ? -1 : 1;
+                if (a[sortKey] > b[sortKey]) return sortAsc ? 1 : -1;
+                return 0;
+            });
+        }
 
-          let filtered = songs.filter(s => {
-              let ok = true;
-              const name = (s.name || "").toLowerCase().trim();
-              const lang = (s.lang || "").toLowerCase().trim();
-              const style = (s.style || "").toLowerCase().trim();
-              const bpm = Number(s.bpm) || 0;
-              if (search && !(name.includes(search) || lang.includes(search) || style.includes(search))) ok = false;
-              if (filterLang && lang !== filterLang) ok = false;
-              if (filterStyle && style !== filterStyle) ok = false;
-              if (filterBpm) {
-                  const [min, max] = filterBpm.split("–").map(Number);
-                  if (!(bpm >= min && bpm <= max)) ok = false;
-              }
-              return ok;
-          });
+        const totalPages = Math.ceil(filtered.length / pageSize);
+        if (currentPage > totalPages) currentPage = totalPages || 1;
+        const start = (currentPage - 1) * pageSize;
+        const pageData = filtered.slice(start, start + pageSize);
+        const tbody = document.getElementById("songTable");
+        tbody.innerHTML = "";
+        if (pageData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5">查無符合條件的歌曲。</td></tr>`;
+        } else {
+            pageData.forEach(s => {
+                const row = `<tr>
+                    <td>${s.name}</td>
+                    <td>${s.bpm}</td>
+                    <td>${s.lang}</td>
+                    <td>${s.style}</td>
+                    <td>
+                        <button onclick="editSong('${s.id}')">✏️ 編輯</button>
+                        <button onclick="deleteSong('${s.id}')">🗑 刪除</button>
+                    </td>
+                </tr>`;
+                tbody.insertAdjacentHTML("beforeend", row);
+            });
+        }
 
-          if (sortKey) {
-              filtered.sort((a, b) => {
-                  if (a[sortKey] < b[sortKey]) return sortAsc ? -1 : 1;
-                  if (a[sortKey] > b[sortKey]) return sortAsc ? 1 : -1;
-                  return 0;
-              });
-          }
+        const pagination = document.getElementById("pagination");
+        pagination.innerHTML = "";
+        for (let i = 1; i <= totalPages; i++) {
+            pagination.innerHTML += `<button onclick="gotoPage(${i})" ${i === currentPage ? "disabled" : ""}>${i}</button>`;
+        }
+    }
 
-          const totalPages = Math.ceil(filtered.length / pageSize);
-          if (currentPage > totalPages) currentPage = totalPages || 1;
-          const start = (currentPage - 1) * pageSize;
-          const pageData = filtered.slice(start, start + pageSize);
-          const tbody = document.getElementById("songTable");
-          tbody.innerHTML = "";
-          if (pageData.length === 0) {
-              tbody.innerHTML = `<tr><td colspan="5">查無符合條件的歌曲。</td></tr>`;
-          } else {
-              pageData.forEach(s => {
-                  const row = `<tr>
-                      <td>${s.name}</td>
-                      <td>${s.bpm}</td>
-                      <td>${s.lang}</td>
-                      <td>${s.style}</td>
-                      <td>
-                          <button onclick="editSong('${s.id}')">✏️ 編輯</button>
-                          <button onclick="deleteSong('${s.id}')">🗑 刪除</button>
-                      </td>
-                  </tr>`;
-                  tbody.insertAdjacentHTML("beforeend", row);
-              });
-          }
+    function sortBy(key) {
+        if (sortKey === key) sortAsc = !sortAsc;
+        else { sortKey = key; sortAsc = true; }
+        render();
+    }
 
-          const pagination = document.getElementById("pagination");
-          pagination.innerHTML = "";
-          for (let i = 1; i <= totalPages; i++) {
-              pagination.innerHTML += `<button onclick="gotoPage(${i})" ${i === currentPage ? "disabled" : ""}>${i}</button>`;
-          }
-      }
+    function gotoPage(page) {
+        currentPage = page;
+        render();
+    }
 
-      function sortBy(key) {
-          if (sortKey === key) sortAsc = !sortAsc;
-          else { sortKey = key; sortAsc = true; }
-          render();
-      }
-
-      function gotoPage(page) {
-          currentPage = page;
-          render();
-      }
-
-      loadSongs();
-    };
+    // 網頁載入完成後，執行這兩個函式
+    window.onload = loadSongs;
   </script>
 </body>
 </html>
