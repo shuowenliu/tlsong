@@ -193,6 +193,7 @@
     <p id="importStatus" style="font-size:12px;"></p>
   </div>
 
+  <!-- 載入 Supabase 與 PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
@@ -202,15 +203,16 @@
     let sortKey = "";
     let sortAsc = true;
     
-    // ⭐ 請將你的 Supabase URL 和 Key 貼在這裡
+    // ⭐ Supabase 設定
     const SUPABASE_URL = 'https://qcvkwglzltebvajvyakm.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go';
     
-    const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { createClient } = supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // 🚀 從 Supabase 載入歌曲
     async function loadSongs() {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('songs')
             .select('*');
         
@@ -223,7 +225,7 @@
         }
     }
 
-    // ⭐ 新增 CSV 匯入函式（逐筆寫入）
+    // ⭐ 匯入 CSV
     async function importCsv() {
         const fileInput = document.getElementById('csvFile');
         const file = fileInput.files[0];
@@ -256,7 +258,7 @@
                 importStatus.textContent = `找到 ${dataToInsert.length} 筆資料，開始匯入...`;
                 
                 for (const [index, row] of dataToInsert.entries()) {
-                    const { error } = await supabase
+                    const { error } = await supabaseClient
                         .from('songs')
                         .insert([row]);
                     
@@ -286,21 +288,16 @@
 
         if (!songName) return alert("請輸入歌名");
 
-        const newSong = {
-            name: songName,
-            bpm: songBpm,
-            lang: songLang,
-            style: songStyle
-        };
+        const newSong = { name: songName, bpm: songBpm, lang: songLang, style: songStyle };
         
         let result;
         if (songId) {
-            result = await supabase
+            result = await supabaseClient
                 .from('songs')
                 .update(newSong)
                 .eq('id', songId);
         } else {
-            result = await supabase
+            result = await supabaseClient
                 .from('songs')
                 .insert(newSong);
         }
@@ -328,7 +325,7 @@
     async function deleteSong(id) {
         if (!confirm("確定要刪除嗎？")) return;
         
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('songs')
             .delete()
             .eq('id', id);
@@ -422,7 +419,12 @@
         render();
     }
 
-    // 網頁載入完成後，執行載入歌曲的函式
+    // 綁定按鈕事件
+    document.getElementById("saveSongBtn").onclick = saveSong;
+    document.getElementById("clearFormBtn").onclick = clearForm;
+    document.getElementById("importCsvBtn").onclick = importCsv;
+
+    // 網頁載入完成後執行
     window.onload = loadSongs;
   </script>
 </body>
