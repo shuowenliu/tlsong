@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>🎵 歌曲管理系統</title>
+  
   <style>
     body {
       margin: 0;
@@ -396,19 +397,29 @@
                     <td>${s.lang}</td>
                     <td>${s.style}</td>
                     <td>
-                        <button onclick="editSong('${s.id}')">✏️ 編輯</button>
-                        <button onclick="deleteSong('${s.id}')">🗑 刪除</button>
+                        <button class="editBtn" data-id="${s.id}">✏️ 編輯</button>
+                        <button class="deleteBtn" data-id="${s.id}">🗑 刪除</button>
                     </td>
                 </tr>`;
                 tbody.insertAdjacentHTML("beforeend", row);
+            });
+            // 由於按鈕是動態生成的，我們需要在這裡重新綁定事件
+            document.querySelectorAll('.editBtn').forEach(button => {
+                button.addEventListener('click', (event) => editSong(event.target.dataset.id));
+            });
+            document.querySelectorAll('.deleteBtn').forEach(button => {
+                button.addEventListener('click', (event) => deleteSong(event.target.dataset.id));
             });
         }
 
         const pagination = document.getElementById("pagination");
         pagination.innerHTML = "";
         for (let i = 1; i <= totalPages; i++) {
-            pagination.innerHTML += `<button onclick="gotoPage(${i})" ${i === currentPage ? "disabled" : ""}>${i}</button>`;
+            pagination.innerHTML += `<button class="pageBtn" data-page="${i}" ${i === currentPage ? "disabled" : ""}>${i}</button>`;
         }
+        document.querySelectorAll('.pageBtn').forEach(button => {
+            button.addEventListener('click', (event) => gotoPage(event.target.dataset.page));
+        });
       }
 
       function sortBy(key) {
@@ -418,7 +429,7 @@
       }
 
       function gotoPage(page) {
-        currentPage = page;
+        currentPage = parseInt(page);
         render();
       }
 
