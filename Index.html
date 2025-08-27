@@ -1,5 +1,193 @@
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>🎵 歌曲管理系統</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: "Microsoft JhengHei", sans-serif;
+      background: #222;
+      color: #eee;
+      display: flex;
+      height: 100vh;
+    }
+    .left, .right {
+      padding: 20px;
+      overflow: auto;
+      flex-shrink: 0;
+    }
+    .left {
+      flex: 2;
+      border-right: 2px solid #444;
+    }
+    .right {
+      flex: 1;
+      background: #333;
+    }
+    h2 {
+      margin-top: 0;
+      color: #ffcc00;
+    }
+    input, select {
+      padding: 6px;
+      margin: 4px;
+      border: none;
+      border-radius: 5px;
+      background: #444;
+      color: #fff;
+    }
+    button {
+      padding: 8px 14px;
+      margin: 4px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background: #ffcc00;
+      color: #000;
+      font-weight: bold;
+    }
+    button:hover { background: #ffaa00; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 8px;
+      text-align: center;
+      border-bottom: 1px solid #555;
+    }
+    th {
+      cursor: pointer;
+      color: #ffcc00;
+    }
+    tr:hover { background: #444; }
+    .filters {
+      margin-bottom: 10px;
+    }
+    .pagination { text-align: center; margin-top: 10px; }
+    .pagination button {
+      background: #666;
+      color: #fff;
+    }
+    .pagination button:disabled {
+      background: #ffcc00;
+      color: #000;
+    }
+    @media (max-width: 768px) {
+      body {
+        flex-direction: column;
+        height: auto;
+      }
+      .left, .right {
+        flex: 1;
+        width: 100%;
+        border-right: none;
+        border-bottom: 2px solid #444;
+      }
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+      }
+      .filters input, .filters select {
+        flex: 1 1 auto;
+        min-width: 120px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="left">
+    <h2>📋 歌曲清單</h2>
+    <div class="filters">
+      <input type="text" id="search" placeholder="🔍 關鍵字搜尋..." oninput="render()">
+      <select id="filterLang" onchange="render()">
+        <option value="">全部語言</option>
+        <option>中文</option>
+        <option>英文</option>
+        <option>日文</option>
+        <option>韓文</option>
+        <option>越南</option>
+        <option>粵語</option>
+        <option>台語</option>
+      </select>
+      <select id="filterStyle" onchange="render()">
+        <option value="">全部型態</option>
+        <option>情歌</option>
+        <option>悲傷</option>
+        <option>嗨歌</option>
+        <option>RAP</option>
+        <option>抒情</option>
+      </select>
+      <select id="filterBpm" onchange="render()">
+        <option value="">全部速度</option>
+        <option value="61-70">61–70</option>
+        <option value="71-80">71–80</option>
+        <option value="81-90">81–90</option>
+        <option value="91-100">91–100</option>
+        <option value="101-110">101–110</option>
+        <option value="111-120">111–120</option>
+        <option value="121-130">121–130</option>
+        <option value="131-140">131–140</option>
+        <option value="141-150">141–150</option>
+        <option value="151-160">151–160</option>
+        <option value="161-170">161–170</option>
+        <option value="171-180">171–180</option>
+        <option value="181-190">181–190</option>
+        <option value="191-200">191–200</option>
+        <option value="201-250">201–250</option>
+      </select>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th onclick="sortBy('name')">歌名</th>
+          <th onclick="sortBy('bpm')">速度</th>
+          <th onclick="sortBy('lang')">語言</th>
+          <th onclick="sortBy('style')">型態</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="songTable"></tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <div class="right">
+    <h2>✍️ 新增 / 編輯歌曲</h2>
+    <input type="hidden" id="songId">
+    <p><input id="songName" placeholder="歌名"></p>
+    <p><input id="songBpm" type="number" placeholder="BPM"></p>
+    <p>
+      <select id="songLang">
+        <option>中文</option>
+        <option>英文</option>
+        <option>日文</option>
+        <option>韓文</option>
+        <option>越南</option>
+        <option>粵語</option>
+        <option>台語</option>
+      </select>
+    </p>
+    <p>
+      <select id="songStyle">
+        <option>情歌</option>
+        <option>悲傷</option>
+        <option>嗨歌</option>
+        <option>RAP</option>
+        <option>抒情</option>
+      </select>
+    </p>
+    <button onclick="saveSong()">💾 儲存</button>
+    <button onclick="clearForm()">🧹 清除</button>
+  </div>
+
+  <script>
     let songs = [];
     let currentPage = 1;
     const pageSize = 10;
@@ -9,6 +197,7 @@
     // ⭐ 請將你的 Supabase URL 和 Key 貼在這裡
     const SUPABASE_URL = 'https://qcvkwglzltebvajvyakm.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go';
+    
     const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // 🚀 從 Supabase 載入歌曲
@@ -99,7 +288,7 @@
         document.getElementById("songStyle").value = "情歌";
     }
 
-    // 🎨 渲染歌曲清單（與之前相同）
+    // 🎨 渲染歌曲清單
     function render() {
         const search = document.getElementById("search").value.toLowerCase().trim();
         const filterLang = document.getElementById("filterLang").value.toLowerCase().trim();
@@ -173,4 +362,6 @@
     }
 
     window.onload = loadSongs;
-</script>
+  </script>
+</body>
+</html>
