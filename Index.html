@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 歌曲管理系統 (Supabase)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <!-- 引入 Supabase JavaScript SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+            background: #222;
+            color: #eee;
+            display: flex;
+            height: 100vh;
+            overflow: hidden; /* 防止滾動條在主容器上出現 */
+        }
+        .left, .right {
+            padding: 20px;
+            overflow-y: auto; /* 允許內部內容滾動 */
+            box-sizing: border-box; /* 確保 padding 不增加寬度 */
+        }
+        .left {
+            flex: 2;
+            border-right: 2px solid #444;
+        }
+        .right {
+            flex: 1;
+            background: #333;
+        }
+        h2 {
+            margin-top: 0;
+            color: #ffcc00;
+        }
+        input, select {
+            padding: 8px; /* 增加 padding */
+            margin: 6px 4px; /* 增加 margin */
+            border: none;
+            border-radius: 5px;
+            background: #444;
+            color: #fff;
+            width: calc(100% - 8px); /* 調整寬度以適應 padding */
+            box-sizing: border-box; /* 確保 padding 不增加寬度 */
+        }
+        select {
+            appearance: none; /* 移除預設樣式 */
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23ffcc00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-down"><polyline points="6 9 12 15 18 9"></polyline></svg>');
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 30px; /* 為箭頭留出空間 */
+        }
+        button {
+            padding: 8px 14px;
+            margin: 4px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #ffcc00;
+            color: #000;
+            font-weight: bold;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+        button:hover {
+            background: #ffaa00;
+            transform: translateY(-1px);
+        }
+        button:active {
+            transform: translateY(1px);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px; /* 增加 padding */
+            text-align: center;
+            border-bottom: 1px solid #555;
+        }
+        th {
+            cursor: pointer;
+            color: #ffcc00;
+            position: sticky; /* 固定表頭 */
+            top: 0;
+            background: #222; /* 表頭背景與 body 相同 */
+            z-index: 10;
+        }
+        tr:hover { background: #444; }
+        .filters {
+            margin-bottom: 15px; /* 增加間距 */
+            display: flex;
+            flex-wrap: wrap; /* 允許換行 */
+            gap: 10px; /* 元素間距 */
+        }
+        .filters input, .filters select {
+            flex: 1 1 calc(50% - 10px); /* 在小螢幕上兩列 */
+            min-width: 120px;
+        }
+        @media (min-width: 768px) {
+            .filters input, .filters select {
+                flex: 1 1 calc(25% - 10px); /* 在中等螢幕上四列 */
+            }
+        }
+        .pagination { text-align: center; margin-top: 15px; }
+        .pagination button {
+            background: #666;
+            color: #fff;
+        }
+        .pagination button:disabled {
+            background: #ffcc00;
+            color: #000;
+            cursor: not-allowed;
+        }
+
+        /* 訊息框和確認視窗樣式 (與深色主題匹配) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content-custom {
+            background: #333;
+            color: #eee;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        .modal-content-custom h3 {
+            color: #ffcc00;
+            margin-bottom: 15px;
+        }
+        .modal-content-custom p {
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        .modal-buttons button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            min-width: 100px;
+        }
+        .modal-buttons .confirm-btn {
+            background: #e74c3c; /* Red for delete confirmation */
+            color: #fff;
+        }
+        .modal-buttons .confirm-btn:hover {
+            background: #c0392b;
+        }
+        .modal-buttons .cancel-btn {
+            background: #7f8c8d; /* Gray for cancel */
+            color: #fff;
+        }
+        .modal-buttons .cancel-btn:hover {
+            background: #5c6a6b;
+        }
+
+        /* 載入指示器 */
+        .loading-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #ffcc00;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-indicator p {
+            color: #fff;
+            font-size: 1.2rem;
+        }
+
+        /* 訊息框 */
+        .message-box {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #34495e; /* Default info blue */
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1002;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            transform: translateY(20px);
+        }
+        .message-box.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .message-box.success { background: #27ae60; } /* Green */
+        .message-box.error { background: #c0392b; } /* Red */
+        .message-box.warning { background: #f39c12; } /* Orange/Duplicate */
+
+        /* Media Queries for Responsiveness */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+                height: auto;
+            }
+            .left, .right {
+                flex: 1;
+                width: 100%;
+                border-right: none;
+                border-bottom: 2px solid #444;
+            }
+            .right {
+                padding-bottom: 80px; /* 避免按鈕被切掉 */
+            }
+            .filters input, .filters select {
+                flex: 1 1 100%; /* 小螢幕上單列 */
+            }
+            th {
+                position: static; /* 小螢幕不固定表頭 */
+                background: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 左邊：歌曲清單 -->
+    <div class="left">
+        <h2>📋 歌曲清單</h2>
+        <div class="filters">
+            <input type="text" id="search" placeholder="🔍 關鍵字搜尋..." oninput="fetchSongs()">
+            <select id="filterLang" onchange="fetchSongs()">
+                <option value="">全部語言</option>
+                <!-- Dynamically populated -->
+            </select>
+            <select id="filterStyle" onchange="fetchSongs()">
+                <option value="">全部型態</option>
+                <!-- Dynamically populated -->
+            </select>
+            <select id="filterBpm" onchange="fetchSongs()">
+                <option value="">全部速度</option>
+                <option value="61-70">61–70</option>
+                <option value="71-80">71–80</option>
+                <option value="81-90">81–90</option>
+                <option value="91-100">91–100</option>
+                <option value="101-110">101–110</option>
+                <option value="111-120">111–120</option>
+                <option value="121-130">121–130</option>
+                <option value="131-140">131–140</option>
+                <option value="141-150">141–150</option>
+                <option value="151-160">151–160</option>
+                <option value="161-170">161–170</option>
+                <option value="171-180">171–180</option>
+                <option value="181-190">181–190</option>
+                <option value="191-200">191–200</option>
+                <option value="201-250">201–250</option>
+            </select>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th onclick="sortBy('name')">歌名</th>
+                    <th onclick="sortBy('bpm')">速度</th>
+                    <th onclick="sortBy('lang')">語言</th>
+                    <th onclick="sortBy('style')">型態</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="songTable"></tbody>
+        </table>
+        <div class="pagination" id="pagination"></div>
+    </div>
+
+    <!-- 右邊：新增 / 編輯 -->
+    <div class="right">
+        <h2>✍️ 新增 / 編輯歌曲</h2>
+        <input type="hidden" id="songId">
+        <p><input id="songName" placeholder="歌名"></p>
+        <p><input id="songBpm" type="number" placeholder="BPM"></p>
+        <p>
+            <select id="songLang_form">
+                <option value="中文">中文</option>
+                <option value="英文">英文</option>
+                <option value="日文">日文</option>
+                <option value="韓文">韓文</option>
+                <option value="粵語">粵語</option>
+                <option value="台語">台語</option>
+                <!-- 其他選項將動態載入 -->
+            </select>
+        </p>
+        <p>
+            <select id="songStyle_form">
+                <option value="情歌">情歌</option>
+                <option value="悲傷">悲傷</option>
+                <option value="嗨歌">嗨歌</option>
+                <option value="RAP">RAP</option>
+                <option value="抒情">抒情</option>
+                <!-- 其他選項將動態載入 -->
+            </select>
+        </p>
+        <button onclick="saveSong()">💾 儲存</button>
+        <button onclick="clearForm()">🧹 清除</button>
+    </div>
+
+    <!-- 載入指示器 -->
+    <div id="loadingIndicator" class="loading-indicator hidden">
+        <div class="spinner"></div>
+        <p>載入中...</p>
+    </div>
+
+    <!-- 自訂訊息框 -->
+    <div id="messageBox" class="message-box hidden">
+        <p id="messageText"></p>
+    </div>
+
+    <!-- 確認刪除視窗 -->
+    <div id="confirmationModal" class="modal-overlay hidden">
+        <div class="modal-content-custom">
+            <h3 id="confirmTitle">確認操作</h3>
+            <p id="confirmMessage"></p>
+            <div class="modal-buttons">
+                <button id="cancelConfirm" class="cancel-btn">取消</button>
+                <button id="executeConfirm" class="confirm-btn">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 🚨🚨🚨 重要：替換為您 Supabase 專案的 URL 和 anon key 🚨🚨🚨
+        const SUPABASE_URL = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjAzNTAyNywiZXhwIjoyMDcxNjExMDI3fQ.5i9nB3IlqzohegY31y6JpqQ7biD0vetD6o8N520GuUoE';
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let allSongs = []; // 儲存從後端獲取的所有歌曲
+        let currentPage = 1;
+        const pageSize = 10;
+        let sortKey = "";
+        let sortAsc = true;
+
+        // --- DOM 元素快取 ---
+        const songTable = document.getElementById("songTable");
+        const paginationDiv = document.getElementById("pagination");
+        const searchInput = document.getElementById("search");
+        const filterLangSelect = document.getElementById("filterLang");
+        const filterStyleSelect = document.getElementById("filterStyle");
+        const filterBpmSelect = document.getElementById("filterBpm");
+        const songIdInput = document.getElementById("songId");
+        const songNameInput = document.getElementById("songName");
+        const songBpmInput = document.getElementById("songBpm");
+        const songLangFormSelect = document.getElementById("songLang_form");
+        const songStyleFormSelect = document.getElementById("songStyle_form");
+
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const confirmationModal = document.getElementById('confirmationModal');
+        const confirmTitle = document.getElementById('confirmTitle');
+        const confirmMessage = document.getElementById('confirmMessage');
+        const cancelConfirmButton = document.getElementById('cancelConfirm');
+        const executeConfirmButton = document.getElementById('executeConfirm');
+
+        // --- 輔助函數 ---
+
+        function showLoading(show) {
+            loadingIndicator.classList.toggle('hidden', !show);
+        }
+
+        function showMessage(message, type = 'info') {
+            messageText.textContent = message;
+            messageBox.className = 'message-box'; 
+            messageBox.classList.add(type === 'duplicate' ? 'warning' : type);
+            messageBox.classList.remove('hidden');
+            messageBox.classList.add('show');
+
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+                setTimeout(() => {
+                    messageBox.classList.add('hidden');
+                }, 300);
+            }, 3000);
+        }
+
+        function showConfirmation(title, message, onConfirm) {
+            confirmTitle.textContent = title;
+            confirmMessage.textContent = message;
+            confirmationModal.classList.remove('hidden');
+
+            const handleExecute = () => {
+                onConfirm();
+                confirmationModal.classList.add('hidden');
+                executeConfirmButton.removeEventListener('click', handleExecute);
+                cancelConfirmButton.removeEventListener('click', handleCancel);
+            };
+
+            const handleCancel = () => {
+                confirmationModal.classList.add('hidden');
+                executeConfirmButton.removeEventListener('click', handleExecute);
+                cancelConfirmButton.removeEventListener('click', handleCancel);
+            };
+
+            executeConfirmButton.addEventListener('click', handleExecute);
+            cancelConfirmButton.addEventListener('click', handleCancel);
+        }
+
+        // --- 與 Supabase API 互動函數 ---
+
+        async function fetchSongs() {
+            showLoading(true);
+            const search = searchInput.value.trim();
+            const lang = filterLangSelect.value;
+            const style = filterStyleSelect.value;
+            const bpmRange = filterBpmSelect.value;
+
+            let query = supabase.from('songs').select('*', { count: 'exact' });
+
+            // 搜尋功能 (模糊搜尋歌名、語言、型態)
+            if (search) {
+                query = query.or(`name.ilike.%${search}%,lang.ilike.%${search}%,style.ilike.%${search}%`);
+            }
+
+            // 篩選語言
+            if (lang) {
+                query = query.eq('lang', lang);
+            }
+
+            // 篩選型態
+            if (style) {
+                query = query.eq('style', style);
+            }
+
+            // 篩選 BPM 區間
+            if (bpmRange) {
+                const [min, max] = bpmRange.split('-').map(Number);
+                if (!isNaN(min) && !isNaN(max)) {
+                    query = query.gte('bpm', min).lte('bpm', max);
+                }
+            }
+
+            // 排序
+            if (sortKey) {
+                query = query.order(sortKey, { ascending: sortAsc });
+            } else {
+                query = query.order('name', { ascending: true }); // 預設排序
+            }
+
+            // 分頁
+            const from = (currentPage - 1) * pageSize;
+            const to = from + pageSize - 1;
+            query = query.range(from, to);
+            
+            try {
+                const { data, count, error } = await query;
+
+                if (error) {
+                    throw new Error(error.message || '無法載入歌曲');
+                }
+                
+                allSongs = data || []; 
+                
+                populateFilterOptions();
+                renderTable(data, count); 
+                showMessage("歌曲列表已載入。", "success");
+            } catch (error) {
+                showMessage(`載入歌曲失敗: ${error.message}`, "error");
+                console.error('Fetch songs error:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function saveSong() {
+            const song = {
+                id: songIdInput.value || null, 
+                name: songNameInput.value.trim(),
+                bpm: parseInt(songBpmInput.value) || null, // Supabase null for empty int
+                lang: songLangFormSelect.value || null,
+                style: songStyleFormSelect.value || null
+            };
+
+            if (!song.name) {
+                showMessage("請輸入歌名", "error");
+                return;
+            }
+
+            showLoading(true);
+            try {
+                let result;
+                if (song.id) {
+                    // 更新歌曲前檢查重複 (排除自身)
+                    const { data: existing, error: existingError } = await supabase
+                        .from('songs')
+                        .select('id')
+                        .eq('name', song.name)
+                        .eq('bpm', song.bpm)
+                        .eq('lang', song.lang)
+                        .eq('style', song.style)
+                        .neq('id', song.id);
+
+                    if (existingError) throw existingError;
+                    if (existing && existing.length > 0) {
+                        showMessage('與其他現有歌曲重複，請檢查！', 'warning');
+                        return;
+                    }
+
+                    // 更新歌曲
+                    result = await supabase
+                        .from('songs')
+                        .update({ name: song.name, bpm: song.bpm, lang: song.lang, style: song.style })
+                        .eq('id', song.id)
+                        .select(); // 返回更新後的數據
+                } else {
+                    // 新增歌曲前檢查重複
+                    const { data: existing, error: existingError } = await supabase
+                        .from('songs')
+                        .select('id')
+                        .eq('name', song.name)
+                        .eq('bpm', song.bpm)
+                        .eq('lang', song.lang)
+                        .eq('style', song.style);
+
+                    if (existingError) throw existingError;
+                    if (existing && existing.length > 0) {
+                        showMessage('這首歌已經存在，請勿重複新增！', 'warning');
+                        return;
+                    }
+                    
+                    // 新增歌曲
+                    result = await supabase
+                        .from('songs')
+                        .insert([{ name: song.name, bpm: song.bpm, lang: song.lang, style: song.style }])
+                        .select(); // 返回插入後的數據
+                }
+
+                if (result.error) {
+                    throw new Error(result.error.message || '儲存歌曲失敗');
+                }
+
+                clearForm();
+                await fetchSongs(); // 重新載入列表
+                showMessage(`歌曲${song.id ? '更新' : '新增'}成功！`, "success");
+            } catch (error) {
+                showMessage(`儲存歌曲失敗: ${error.message}`, error.message.includes('重複') ? "warning" : "error");
+                console.error('Save song error:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function editSong(id) {
+            showLoading(true);
+            try {
+                const { data, error } = await supabase
+                    .from('songs')
+                    .select('*')
+                    .eq('id', id)
+                    .single(); // 獲取單一記錄
+
+                if (error) {
+                    throw new Error(error.message || '無法載入歌曲進行編輯');
+                }
+                
+                songIdInput.value = data.id;
+                songNameInput.value = data.name;
+                songBpmInput.value = data.bpm;
+                songLangFormSelect.value = data.lang;
+                songStyleFormSelect.value = data.style;
+                showMessage(`正在編輯歌曲: ${data.name}`, "info");
+            } catch (error) {
+                showMessage(`編輯歌曲失敗: ${error.message}`, "error");
+                console.error('Edit load error:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function deleteSongHandler(id) {
+            showConfirmation("確認刪除", "您確定要刪除這首歌曲嗎？此操作無法復原。", async () => {
+                showLoading(true);
+                try {
+                    const { error } = await supabase
+                        .from('songs')
+                        .delete()
+                        .eq('id', id);
+
+                    if (error) {
+                        throw new Error(error.message || '刪除歌曲失敗');
+                    }
+
+                    await fetchSongs(); // 重新載入列表
+                    showMessage("歌曲刪除成功！", "success");
+                } catch (error) {
+                    showMessage(`刪除歌曲失敗: ${error.message}`, "error");
+                    console.error('Delete song error:', error);
+                } finally {
+                    showLoading(false);
+                }
+            });
+        }
+
+        // --- 表單和篩選器操作函數 ---
+
+        function clearForm() {
+            songIdInput.value = "";
+            songNameInput.value = "";
+            songBpmInput.value = "";
+            songLangFormSelect.value = "中文"; // 預設值
+            songStyleFormSelect.value = "情歌"; // 預設值
+            showMessage("表單已清除。", "info");
+        }
+
+        function populateFilterOptions() {
+            // 從 allSongs (這裡其實是當前頁面的歌曲，但因為 Supabase 處理篩選，這個列表會小)
+            // 為了獲取所有可能的選項，可能需要在 fetchSongs 之前先做一次不分頁的獲取
+            // 但為了簡化，我們使用當前 allSongs 列表中的唯一值
+            const uniqueLangs = new Set(allSongs.map(s => s.lang).filter(Boolean));
+            const uniqueStyles = new Set(allSongs.map(s => s.style).filter(Boolean));
+
+            // 填充篩選器下拉選單
+            const currentFilterLang = filterLangSelect.value;
+            filterLangSelect.innerHTML = '<option value="">全部語言</option>';
+            Array.from(uniqueLangs).sort().forEach(lang => {
+                filterLangSelect.innerHTML += `<option value="${lang}">${lang}</option>`;
+            });
+            filterLangSelect.value = currentFilterLang;
+
+            const currentFilterStyle = filterStyleSelect.value;
+            filterStyleSelect.innerHTML = '<option value="">全部型態</option>';
+            Array.from(uniqueStyles).sort().forEach(style => {
+                filterStyleSelect.innerHTML += `<option value="${style}">${style}</option>`;
+            });
+            filterStyleSelect.value = currentFilterStyle;
+
+            // 填充表單下拉選單 (保留預設選項和動態選項)
+            const defaultFormLangs = ['中文', '英文', '日文', '韓文', '粵語', '台語'];
+            const allFormLangs = [...new Set([...defaultFormLangs, ...Array.from(uniqueLangs)])];
+            const currentFormLang = songLangFormSelect.value;
+            songLangFormSelect.innerHTML = '';
+            allFormLangs.sort().forEach(lang => {
+                songLangFormSelect.innerHTML += `<option value="${lang}">${lang}</option>`;
+            });
+            songLangFormSelect.value = currentFormLang || defaultFormLangs[0];
+
+            const defaultFormStyles = ['情歌', '悲傷', '嗨歌', 'RAP', '抒情'];
+            const allFormStyles = [...new Set([...defaultFormStyles, ...Array.from(uniqueStyles)])];
+            const currentFormStyle = songStyleFormSelect.value;
+            songStyleFormSelect.innerHTML = '';
+            allFormStyles.sort().forEach(style => {
+                songStyleFormSelect.innerHTML += `<option value="${style}">${style}</option>`;
+            });
+            songStyleFormSelect.value = currentFormStyle || defaultFormStyles[0];
+        }
+
+        function renderTable(songsToRender, totalSongs) {
+            songTable.innerHTML = "";
+            if (songsToRender.length === 0 && totalSongs === 0) {
+                 songTable.innerHTML = `<tr><td colspan="5" style="padding: 20px; color: #aaa;">目前沒有歌曲，請新增！</td></tr>`;
+            } else if (songsToRender.length === 0 && totalSongs > 0) {
+                 songTable.innerHTML = `<tr><td colspan="5" style="padding: 20px; color: #aaa;">無符合篩選條件的歌曲。</td></tr>`;
+            }
+
+            songsToRender.forEach(s => {
+                const row = `<tr>
+                    <td>${s.name}</td>
+                    <td>${s.bpm || '-'}</td>
+                    <td>${s.lang || '-'}</td>
+                    <td>${s.style || '-'}</td>
+                    <td>
+                        <button onclick="editSong('${s.id}')">✏️ 編輯</button>
+                        <button onclick="deleteSongHandler('${s.id}')">🗑 刪除</button>
+                    </td>
+                </tr>`;
+                songTable.insertAdjacentHTML("beforeend", row);
+            });
+
+            // 渲染分頁
+            const totalPages = Math.ceil(totalSongs / pageSize);
+            paginationDiv.innerHTML = "";
+            for (let i = 1; i <= totalPages; i++) {
+                paginationDiv.innerHTML += `<button onclick="gotoPage(${i})" ${i === currentPage ? "disabled" : ""}>${i}</button>`;
+            }
+        }
+
+        function sortBy(key) {
+            if (sortKey === key) sortAsc = !sortAsc;
+            else { sortKey = key; sortAsc = true; }
+            currentPage = 1; // 排序後回到第一頁
+            fetchSongs();
+        }
+
+        function gotoPage(page) {
+            currentPage = page;
+            fetchSongs();
+        }
+
+        // --- 頁面載入時執行初始化 ---
+        document.addEventListener('DOMContentLoaded', fetchSongs);
+    </script>
+</body>
+</html>
