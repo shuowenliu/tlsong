@@ -196,21 +196,20 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      let songs = [];
-      let currentPage = 1;
-      const pageSize = 10;
-      let sortKey = "";
-      let sortAsc = true;
-      
-      // ⭐ 請將你的 Supabase URL 和 Key 貼在這裡
-      const SUPABASE_URL = 'https://qcvkwglzltebvajvyakm.supabase.co';
-      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go';
-      
-      const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    let songs = [];
+    let currentPage = 1;
+    const pageSize = 10;
+    let sortKey = "";
+    let sortAsc = true;
+    
+    // ⭐ 請將你的 Supabase URL 和 Key 貼在這裡
+    const SUPABASE_URL = 'https://qcvkwglzltebvajvyakm.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go';
+    
+    const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-      // 🚀 從 Supabase 載入歌曲
-      async function loadSongs() {
+    // 🚀 從 Supabase 載入歌曲
+    async function loadSongs() {
         const { data, error } = await supabase
             .from('songs')
             .select('*');
@@ -222,10 +221,10 @@
             songs = data || [];
             render();
         }
-      }
+    }
 
-      // ⭐ 新增 CSV 匯入函式（逐筆寫入）
-      async function importCsv() {
+    // ⭐ 新增 CSV 匯入函式（逐筆寫入）
+    async function importCsv() {
         const fileInput = document.getElementById('csvFile');
         const file = fileInput.files[0];
         
@@ -275,10 +274,10 @@
                 fileInput.value = '';
             }
         });
-      }
+    }
 
-      // 💾 儲存歌曲
-      async function saveSong() {
+    // 💾 儲存歌曲
+    async function saveSong() {
         const songId = document.getElementById("songId").value;
         const songName = document.getElementById("songName").value.trim();
         const songBpm = parseInt(document.getElementById("songBpm").value) || 0;
@@ -312,10 +311,10 @@
             clearForm();
             loadSongs();
         }
-      }
+    }
 
-      // ✏️ 編輯歌曲
-      function editSong(id) {
+    // ✏️ 編輯歌曲
+    function editSong(id) {
         const song = songs.find(s => s.id === id);
         if (!song) return;
         document.getElementById("songId").value = song.id;
@@ -323,10 +322,10 @@
         document.getElementById("songBpm").value = song.bpm;
         document.getElementById("songLang").value = song.lang;
         document.getElementById("songStyle").value = song.style;
-      }
+    }
 
-      // 🗑 刪除歌曲
-      async function deleteSong(id) {
+    // 🗑 刪除歌曲
+    async function deleteSong(id) {
         if (!confirm("確定要刪除嗎？")) return;
         
         const { error } = await supabase
@@ -339,19 +338,19 @@
         } else {
             loadSongs();
         }
-      }
+    }
 
-      // 🧹 清空表單
-      function clearForm() {
+    // 🧹 清空表單
+    function clearForm() {
         document.getElementById("songId").value = "";
         document.getElementById("songName").value = "";
         document.getElementById("songBpm").value = "";
         document.getElementById("songLang").value = "中文";
         document.getElementById("songStyle").value = "情歌";
-      }
+    }
 
-      // 🎨 渲染歌曲清單
-      function render() {
+    // 🎨 渲染歌曲清單
+    function render() {
         const search = document.getElementById("search").value.toLowerCase().trim();
         const filterLang = document.getElementById("filterLang").value.toLowerCase().trim();
         const filterStyle = document.getElementById("filterStyle").value.toLowerCase().trim();
@@ -397,57 +396,34 @@
                     <td>${s.lang}</td>
                     <td>${s.style}</td>
                     <td>
-                        <button class="editBtn" data-id="${s.id}">✏️ 編輯</button>
-                        <button class="deleteBtn" data-id="${s.id}">🗑 刪除</button>
+                        <button onclick="editSong('${s.id}')">✏️ 編輯</button>
+                        <button onclick="deleteSong('${s.id}')">🗑 刪除</button>
                     </td>
                 </tr>`;
                 tbody.insertAdjacentHTML("beforeend", row);
-            });
-            // 由於按鈕是動態生成的，我們需要在這裡重新綁定事件
-            document.querySelectorAll('.editBtn').forEach(button => {
-                button.addEventListener('click', (event) => editSong(event.target.dataset.id));
-            });
-            document.querySelectorAll('.deleteBtn').forEach(button => {
-                button.addEventListener('click', (event) => deleteSong(event.target.dataset.id));
             });
         }
 
         const pagination = document.getElementById("pagination");
         pagination.innerHTML = "";
         for (let i = 1; i <= totalPages; i++) {
-            pagination.innerHTML += `<button class="pageBtn" data-page="${i}" ${i === currentPage ? "disabled" : ""}>${i}</button>`;
+            pagination.innerHTML += `<button onclick="gotoPage(${i})" ${i === currentPage ? "disabled" : ""}>${i}</button>`;
         }
-        document.querySelectorAll('.pageBtn').forEach(button => {
-            button.addEventListener('click', (event) => gotoPage(event.target.dataset.page));
-        });
-      }
+    }
 
-      function sortBy(key) {
+    function sortBy(key) {
         if (sortKey === key) sortAsc = !sortAsc;
         else { sortKey = key; sortAsc = true; }
         render();
-      }
+    }
 
-      function gotoPage(page) {
-        currentPage = parseInt(page);
+    function gotoPage(page) {
+        currentPage = page;
         render();
-      }
+    }
 
-      // 綁定事件監聽器，而非使用 onclick 屬性
-      document.getElementById('saveSongBtn').addEventListener('click', saveSong);
-      document.getElementById('clearFormBtn').addEventListener('click', clearForm);
-      document.getElementById('importCsvBtn').addEventListener('click', importCsv);
-      document.getElementById('search').addEventListener('input', render);
-      document.getElementById('filterLang').addEventListener('change', render);
-      document.getElementById('filterStyle').addEventListener('change', render);
-      document.getElementById('filterBpm').addEventListener('change', render);
-      document.getElementById('sortName').addEventListener('click', () => sortBy('name'));
-      document.getElementById('sortBpm').addEventListener('click', () => sortBy('bpm'));
-      document.getElementById('sortLang').addEventListener('click', () => sortBy('lang'));
-      document.getElementById('sortStyle').addEventListener('click', () => sortBy('style'));
-
-      loadSongs();
-    });
+    // 網頁載入完成後，執行載入歌曲的函式
+    window.onload = loadSongs;
   </script>
 </body>
 </html>
