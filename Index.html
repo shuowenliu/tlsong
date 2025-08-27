@@ -270,25 +270,51 @@
       });
     }
 
-    // 儲存歌曲
-    async function saveSong() {
-      const songId = document.getElementById("songId").value;
-      const songName = document.getElementById("songName").value.trim();
-      const songBpm = parseInt(document.getElementById("songBpm").value) || 0;
-      const songLang = document.getElementById("songLang").value;
-      const songStyle = document.getElementById("songStyle").value;
-      if (!songName) return alert("請輸入歌名");
+// 💾 儲存歌曲 - 已新增檢查重複功能
+async function saveSong() {
+    const songId = document.getElementById("songId").value;
+    const songName = document.getElementById("songName").value.trim();
+    const songBpm = parseInt(document.getElementById("songBpm").value) || 0;
+    const songLang = document.getElementById("songLang").value;
+    const songStyle = document.getElementById("songStyle").value;
 
-      const newSong = { name: songName, bpm: songBpm, lang: songLang, style: songStyle };
-      let result;
-      if (songId) {
-        result = await supabaseClient.from('songs').update(newSong).eq('id', songId);
-      } else {
-        result = await supabaseClient.from('songs').insert(newSong);
-      }
-      if (result.error) alert('儲存失敗：' + result.error.message);
-      else { clearForm(); loadSongs(); }
+    if (!songName) {
+        return alert("請輸入歌名");
     }
+
+    // 檢查歌曲是否已存在
+    const { data: existingSongs, error: checkError } = await supabase
+        .from('songs')
+        .select('id')
+        .eq('name', songName);
+
+    if (checkError) {
+        console.error('檢查重複歌曲失敗:', checkError);
+        return alert('檢查重複歌曲失敗，請稍後再試。');
+    }
+
+    // 如果歌曲已存在，且不是正在編輯同一首歌，則顯示警告
+    if (existingSongs.length > 0 && existingSongs[0].id !== songId) {
+        return alert("這首歌已經存在了，請勿重複輸入！");
+    }
+
+    const newSong = { name: songName, bpm: songBpm, lang: songLang, style: songStyle };
+    let result;
+    if (songId) {
+        // 更新現有歌曲
+        result = await supabase.from('songs').update(newSong).eq('id', songId);
+    } else {
+        // 新增歌曲
+        result = await supabase.from('songs').insert(newSong);
+    }
+
+    if (result.error) {
+        alert('儲存失敗：' + result.error.message);
+    } else {
+        clearForm();
+        loadSongs();
+    }
+}
 
     function editSong(id) {
       const song = songs.find(s => s.id === id);
@@ -398,6 +424,7 @@
   </script>
 </body>
 </html>
+
 
 
 
