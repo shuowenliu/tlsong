@@ -123,21 +123,21 @@
       </select>
       <select id="filterBpm">
         <option value="">全部速度</option>
-        <option value="61–70">61–70</option>
-        <option value="71–80">71–80</option>
-        <option value="81–90">81–90</option>
-        <option value="91–100">91–100</option>
-        <option value="101–110">101–110</option>
-        <option value="111–120">111–120</option>
-        <option value="121–130">121–130</option>
-        <option value="131–140">131–140</option>
-        <option value="141–150">141–150</option>
-        <option value="151–160">151–160</option>
-        <option value="161–170">161–170</option>
-        <option value="171–180">171–180</option>
-        <option value="181–190">181–190</option>
-        <option value="191–200">191–200</option>
-        <option value="201–250">201–250</option>
+        <option value="61-70">61–70</option>
+        <option value="71-80">71–80</option>
+        <option value="81-90">81–90</option>
+        <option value="91-100">91–100</option>
+        <option value="101-110">101–110</option>
+        <option value="111-120">111–120</option>
+        <option value="121-130">121–130</option>
+        <option value="131-140">131–140</option>
+        <option value="141-150">141–150</option>
+        <option value="151-160">151–160</option>
+        <option value="161-170">161–170</option>
+        <option value="171-180">171–180</option>
+        <option value="181-190">181–190</option>
+        <option value="191-200">191–200</option>
+        <option value="201-250">201–250</option>
       </select>
     </div>
     <table>
@@ -192,7 +192,6 @@
     <p id="importStatus" style="font-size:12px;"></p>
   </div>
 
-  <!-- 載入 Supabase 與 PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
@@ -202,21 +201,14 @@
     let sortKey = "";
     let sortAsc = true;
 
-    // ⭐ Supabase 設定
+    // ⭐ Supabase 設定 - **已修正**
     const SUPABASE_URL = 'https://qcvkwglzltebvajvyakm.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go'; // ⚠️ 換成 Supabase anon public key
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go';
 
-    if (!SUPABASE_KEY || SUPABASE_KEY === '你的 anon key') {
-      alert("⚠️ 請先到 Supabase 後台複製 'anon public key'，貼到 SUPABASE_KEY！");
-      throw new Error("Supabase key not set");
-    }
+    const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const { createClient } = supabase;
-    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // 🚀 載入歌曲
     async function loadSongs() {
-      const { data, error } = await supabaseClient.from('songs').select('*');
+      const { data, error } = await supabase.from('songs').select('*');
       if (error) {
         console.error('載入歌曲失敗:', error);
         alert('載入歌曲失敗，請檢查 Supabase 設定！');
@@ -226,6 +218,57 @@
       }
     }
 
+    // 💾 儲存歌曲 - 修正版
+    async function saveSong() {
+        const songId = document.getElementById("songId").value;
+        const songName = document.getElementById("songName").value.trim();
+        const songBpm = parseInt(document.getElementById("songBpm").value) || 0;
+        const songLang = document.getElementById("songLang").value;
+        const songStyle = document.getElementById("songStyle").value;
+
+        if (!songName) {
+            return alert("請輸入歌名");
+        }
+
+        // 新增或更新歌曲物件
+        const newSong = { name: songName, bpm: songBpm, lang: songLang, style: songStyle };
+        let result;
+
+        if (songId) {
+            // 編輯歌曲：檢查是否重複，但排除正在編輯的歌曲本身
+            const { data: existingSongs } = await supabase
+                .from('songs')
+                .select('id')
+                .eq('name', songName);
+            
+            if (existingSongs.length > 0 && existingSongs[0].id !== songId) {
+                alert("這首歌名已經存在了，請更換！");
+                return; // 終止函式
+            }
+            result = await supabase.from('songs').update(newSong).eq('id', songId);
+
+        } else {
+            // 新增歌曲：檢查是否重複
+            const { data: existingSongs } = await supabase
+                .from('songs')
+                .select('id')
+                .eq('name', songName);
+
+            if (existingSongs.length > 0) {
+                alert("這首歌已經存在了，請勿重複輸入！");
+                return; // 終止函式
+            }
+            result = await supabase.from('songs').insert(newSong);
+        }
+
+        if (result.error) {
+            alert('儲存失敗：' + result.error.message);
+        } else {
+            clearForm();
+            loadSongs();
+        }
+    }
+    
     // 匯入 CSV
     async function importCsv() {
       const fileInput = document.getElementById('csvFile');
@@ -254,7 +297,7 @@
 
           importStatus.textContent = `找到 ${dataToInsert.length} 筆資料，開始匯入...`;
           for (const [index, row] of dataToInsert.entries()) {
-            const { error } = await supabaseClient.from('songs').insert([row]);
+            const { error } = await supabase.from('songs').insert([row]);
             if (error) {
               importStatus.textContent = `匯入失敗於第 ${index + 1} 筆：${error.message}`;
               console.error('匯入錯誤:', error);
@@ -270,55 +313,6 @@
       });
     }
 
-    // 💾 儲存歌曲 - 已新增檢查重複功能
-    async function saveSong() {
-        const songId = document.getElementById("songId").value;
-        const songName = document.getElementById("songName").value.trim();
-        const songBpm = parseInt(document.getElementById("songBpm").value) || 0;
-        const songLang = document.getElementById("songLang").value;
-        const songStyle = document.getElementById("songStyle").value;
-
-        if (!songName) {
-            return alert("請輸入歌名");
-        }
-
-        // 檢查歌曲是否已存在
-        const { data: existingSongs, error: checkError } = await supabase
-            .from('songs')
-            .select('id')
-            .eq('name', songName);
-
-        if (checkError) {
-            console.error('檢查重複歌曲失敗:', checkError);
-            return alert('檢查重複歌曲失敗，請稍後再試。');
-        }
-
-        // 如果歌曲已存在，且不是正在編輯同一首歌，則顯示警告並清除歌名欄位
-        if (existingSongs.length > 0 && existingSongs[0].id !== songId) {
-            alert("這首歌已經存在了，請勿重複輸入！");
-            document.getElementById("songName").value = ""; // ⚠️ 新增：清除歌名欄位
-            return;
-        }
-
-        const newSong = { name: songName, bpm: songBpm, lang: songLang, style: songStyle };
-        let result;
-        if (songId) {
-            // 更新現有歌曲
-            result = await supabase.from('songs').update(newSong).eq('id', songId);
-        } else {
-            // 新增歌曲
-            result = await supabase.from('songs').insert(newSong);
-        }
-
-        if (result.error) {
-            alert('儲存失敗：' + result.error.message);
-        } else {
-            clearForm(); // 成功儲存時，清除所有欄位
-            loadSongs();
-        }
-    }
-    
-
     function editSong(id) {
       const song = songs.find(s => s.id === id);
       if (!song) return;
@@ -331,7 +325,7 @@
 
     async function deleteSong(id) {
       if (!confirm("確定要刪除嗎？")) return;
-      const { error } = await supabaseClient.from('songs').delete().eq('id', id);
+      const { error } = await supabase.from('songs').delete().eq('id', id);
       if (error) alert('刪除失敗：' + error.message);
       else loadSongs();
     }
@@ -359,12 +353,15 @@
         const bpm = Number(s.bpm) || 0;
 
         if (search && !(name.includes(search) || lang.includes(search) || style.includes(search))) ok = false;
-        if (filterLang && !lang.includes(filterLang)) ok = false;
-        if (filterStyle && !style.includes(filterStyle)) ok = false;
+        if (filterLang && lang !== filterLang) ok = false;
+        if (filterStyle && style !== filterStyle) ok = false;
+        
         if (filterBpm) {
-          const [min, max] = filterBpm.split("–").map(Number);
+          // ⚠️ 修正：使用半形橫線「-」來分割字串，以符合 HTML 的 value
+          const [min, max] = filterBpm.split("-").map(Number);
           if (!(bpm >= min && bpm <= max)) ok = false;
         }
+
         return ok;
       });
 
@@ -427,9 +424,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
-
