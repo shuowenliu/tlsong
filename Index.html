@@ -204,9 +204,8 @@
 
     // ⭐ Supabase 設定
     const SUPABASE_URL = 'https://qcvkwglzltebvajvyakm.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go'; // ⚠️ 要換成 Supabase 後台的 anon public key
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go'; // ⚠️ 換成 Supabase anon public key
 
-    // 🔎 檢查是否有設定 key
     if (!SUPABASE_KEY || SUPABASE_KEY === '你的 anon key') {
       alert("⚠️ 請先到 Supabase 後台複製 'anon public key'，貼到 SUPABASE_KEY！");
       throw new Error("Supabase key not set");
@@ -215,12 +214,9 @@
     const { createClient } = supabase;
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 🚀 從 Supabase 載入歌曲
+    // 🚀 載入歌曲
     async function loadSongs() {
-      const { data, error } = await supabaseClient
-        .from('songs')
-        .select('*');
-
+      const { data, error } = await supabaseClient.from('songs').select('*');
       if (error) {
         console.error('載入歌曲失敗:', error);
         alert('載入歌曲失敗，請檢查 Supabase 設定！');
@@ -294,7 +290,6 @@
       else { clearForm(); loadSongs(); }
     }
 
-    // 編輯歌曲
     function editSong(id) {
       const song = songs.find(s => s.id === id);
       if (!song) return;
@@ -305,7 +300,6 @@
       document.getElementById("songStyle").value = song.style;
     }
 
-    // 刪除歌曲
     async function deleteSong(id) {
       if (!confirm("確定要刪除嗎？")) return;
       const { error } = await supabaseClient.from('songs').delete().eq('id', id);
@@ -313,7 +307,6 @@
       else loadSongs();
     }
 
-    // 清空表單
     function clearForm() {
       document.getElementById("songId").value = "";
       document.getElementById("songName").value = "";
@@ -322,7 +315,7 @@
       document.getElementById("songStyle").value = "情歌";
     }
 
-    // 渲染歌曲清單
+    // 🔎 修正版篩選邏輯
     function render() {
       const search = document.getElementById("search").value.toLowerCase().trim();
       const filterLang = document.getElementById("filterLang").value.toLowerCase().trim();
@@ -335,9 +328,10 @@
         const lang = (s.lang || "").toLowerCase().trim();
         const style = (s.style || "").toLowerCase().trim();
         const bpm = Number(s.bpm) || 0;
+
         if (search && !(name.includes(search) || lang.includes(search) || style.includes(search))) ok = false;
-        if (filterLang && lang !== filterLang) ok = false;
-        if (filterStyle && style !== filterStyle) ok = false;
+        if (filterLang && !lang.includes(filterLang)) ok = false;
+        if (filterStyle && !style.includes(filterStyle)) ok = false;
         if (filterBpm) {
           const [min, max] = filterBpm.split("–").map(Number);
           if (!(bpm >= min && bpm <= max)) ok = false;
@@ -391,18 +385,15 @@
       render();
     }
 
-    // 綁定按鈕事件
     document.getElementById("saveSongBtn").onclick = saveSong;
     document.getElementById("clearFormBtn").onclick = clearForm;
     document.getElementById("importCsvBtn").onclick = importCsv;
 
-    // 綁定搜尋/篩選條件事件
     document.getElementById("search").addEventListener("input", render);
     document.getElementById("filterLang").addEventListener("change", render);
     document.getElementById("filterStyle").addEventListener("change", render);
     document.getElementById("filterBpm").addEventListener("change", render);
 
-    // 網頁載入完成後執行
     window.onload = loadSongs;
   </script>
 </body>
