@@ -5,6 +5,7 @@
   <title>🎵 歌曲管理系統</title>
   
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <style>
     body {
@@ -185,6 +186,14 @@
     </p>
     <button onclick="saveSong()">💾 儲存</button>
     <button onclick="clearForm()">🧹 清除</button>
+
+    <hr style="border-color:#555; margin: 20px 0;">
+    <h2>📤 CSV 匯入</h2>
+    <p>
+      <input type="file" id="csvFile" accept=".csv" style="padding: 10px;">
+    </p>
+    <button onclick="importCsv()">🚀 匯入歌曲</button>
+
   </div>
 
   <script>
@@ -213,6 +222,50 @@
             songs = data || [];
             render();
         }
+    }
+
+    // ⭐ 新增 CSV 匯入函式
+    async function importCsv() {
+        const fileInput = document.getElementById('csvFile');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert('請選擇一個 CSV 檔案！');
+            return;
+        }
+
+        // 使用 Papaparse 解析 CSV 檔案
+        Papa.parse(file, {
+            header: true, // 將第一行視為欄位名稱
+            skipEmptyLines: true,
+            complete: async function(results) {
+                const dataToInsert = results.data.map(row => ({
+                    name: row.name,
+                    bpm: parseInt(row.bpm) || 0,
+                    lang: row.lang,
+                    style: row.style
+                }));
+
+                if (dataToInsert.length === 0) {
+                    alert('CSV 檔案中沒有找到任何歌曲資料。');
+                    return;
+                }
+
+                // 將資料批量插入 Supabase
+                const { data, error } = await supabase
+                    .from('songs')
+                    .insert(dataToInsert);
+
+                if (error) {
+                    alert('匯入失敗：' + error.message);
+                    console.error('匯入錯誤:', error);
+                } else {
+                    alert(`成功匯入 ${dataToInsert.length} 筆歌曲！`);
+                    loadSongs(); // 重新載入列表
+                    fileInput.value = ''; // 清空檔案選擇
+                }
+            }
+        });
     }
 
     // 💾 儲存歌曲
