@@ -1,157 +1,176 @@
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  let songs = [];
-  let currentPage = 1;
-  const pageSize = 10;
-  let sortKey = "";
-  let sortAsc = true;
-  let apiUrl = "https://script.google.com/macros/s/AKfycbw9b0vHTHMvRsKxkodSWKvic3V-7eQPMAsi6h_2uzhqsJzOjDZQLHjUceZRAfVUR-GP/exec"; // 這是 Apps Script 部署後的網址
+    let songs = [];
+    let currentPage = 1;
+    const pageSize = 10;
+    let sortKey = "";
+    let sortAsc = true;
+    
+    // ⭐ 請將你的 Supabase URL 和 Key 貼在這裡
+    const SUPABASE_URL = 'https://qcvkwglzltebvajvyakm.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFjdmt3Z2x6bHRlYnZhanZ5YWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzUwMjcsImV4cCI6MjA3MTYxMTAyN30.K1teLYiXQDquCcFKXX3ugdNfJCWqnik4XqQVQykr-go';
+    const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // 輔助函式：發送 API 請求
-  async function api(action, payload) {
-    if (!apiUrl) {
-      alert("請在程式碼中填入 Apps Script 部署網址！");
-      return;
-    }
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, payload })
-    });
-    return await response.json();
-  }
-
-  // 🚀 從 Google Sheet 載入歌曲
-  async function loadSongs() {
-    const result = await api('getSongs');
-    if (result.status === 'ok') {
-      songs = result.data || [];
-      render();
-    } else {
-      alert("載入歌曲失敗：" + result.message);
-    }
-  }
-
-  // 💾 儲存歌曲
-  async function saveSong() {
-    const song = {
-      id: document.getElementById("songId").value,
-      name: document.getElementById("songName").value.trim(),
-      bpm: parseInt(document.getElementById("songBpm").value) || 0,
-      lang: document.getElementById("songLang").value,
-      style: document.getElementById("songStyle").value
-    };
-    if (!song.name) return alert("請輸入歌名");
-
-    const result = await api('saveSong', song);
-    if (result.status === "ok") {
-      clearForm();
-      loadSongs();
-    } else if (result.status === "duplicate") {
-      alert("⚠️ 這首歌已經存在，請勿重複新增！");
-    } else {
-      alert("儲存失敗：" + result.message);
-    }
-  }
-
-  // ✏️ 編輯歌曲
-  function editSong(id) {
-    const song = songs.find(s => s.id === id);
-    if (!song) return;
-    document.getElementById("songId").value = song.id;
-    document.getElementById("songName").value = song.name;
-    document.getElementById("songBpm").value = song.bpm;
-    document.getElementById("songLang").value = song.lang;
-    document.getElementById("songStyle").value = song.style;
-  }
-
-  // 🗑 刪除歌曲
-  async function deleteSong(id) {
-    if (!confirm("確定要刪除嗎？")) return;
-    const result = await api('deleteSong', { id });
-    if (result.status === "ok") {
-      loadSongs();
-    } else {
-      alert("刪除失敗：" + result.message);
-    }
-  }
-
-  // 🧹 清空表單
-  function clearForm() {
-    document.getElementById("songId").value = "";
-    document.getElementById("songName").value = "";
-    document.getElementById("songBpm").value = "";
-    document.getElementById("songLang").value = "中文";
-    document.getElementById("songStyle").value = "情歌";
-  }
-
-  // 🎨 渲染歌曲清單（與之前相同）
-  function render() {
-    const search = document.getElementById("search").value.toLowerCase().trim();
-    const filterLang = document.getElementById("filterLang").value.toLowerCase().trim();
-    const filterStyle = document.getElementById("filterStyle").value.toLowerCase().trim();
-    const filterBpm = document.getElementById("filterBpm").value;
-
-    let filtered = songs.filter(s => {
-      let ok = true;
-      const name = (s.name || "").toLowerCase().trim();
-      const lang = (s.lang || "").toLowerCase().trim();
-      const style = (s.style || "").toLowerCase().trim();
-      const bpm = Number(s.bpm) || 0;
-      if (search && !(name.includes(search) || lang.includes(search) || style.includes(search))) ok = false;
-      if (filterLang && lang !== filterLang) ok = false;
-      if (filterStyle && style !== filterStyle) ok = false;
-      if (filterBpm) {
-        const [min, max] = filterBpm.split("–").map(Number);
-        if (!(bpm >= min && bpm <= max)) ok = false;
-      }
-      return ok;
-    });
-
-    if (sortKey) {
-      filtered.sort((a, b) => {
-        if (a[sortKey] < b[sortKey]) return sortAsc ? -1 : 1;
-        if (a[sortKey] > b[sortKey]) return sortAsc ? 1 : -1;
-        return 0;
-      });
+    // 🚀 從 Supabase 載入歌曲
+    async function loadSongs() {
+        const { data, error } = await supabase
+            .from('songs')
+            .select('*');
+        
+        if (error) {
+            console.error('載入歌曲失敗:', error);
+            alert('載入歌曲失敗，請檢查 Supabase 設定！');
+        } else {
+            songs = data || [];
+            render();
+        }
     }
 
-    const totalPages = Math.ceil(filtered.length / pageSize);
-    if (currentPage > totalPages) currentPage = totalPages || 1;
-    const start = (currentPage - 1) * pageSize;
-    const pageData = filtered.slice(start, start + pageSize);
-    const tbody = document.getElementById("songTable");
-    tbody.innerHTML = "";
-    pageData.forEach(s => {
-      const row = `<tr>
-        <td>${s.name}</td>
-        <td>${s.bpm}</td>
-        <td>${s.lang}</td>
-        <td>${s.style}</td>
-        <td>
-          <button onclick="editSong('${s.id}')">✏️ 編輯</button>
-          <button onclick="deleteSong('${s.id}')">🗑 刪除</button>
-        </td>
-      </tr>`;
-      tbody.insertAdjacentHTML("beforeend", row);
-    });
+    // 💾 儲存歌曲
+    async function saveSong() {
+        const songId = document.getElementById("songId").value;
+        const songName = document.getElementById("songName").value.trim();
+        const songBpm = parseInt(document.getElementById("songBpm").value) || 0;
+        const songLang = document.getElementById("songLang").value;
+        const songStyle = document.getElementById("songStyle").value;
 
-    const pagination = document.getElementById("pagination");
-    pagination.innerHTML = "";
-    for (let i = 1; i <= totalPages; i++) {
-      pagination.innerHTML += `<button onclick="gotoPage(${i})" ${i === currentPage ? "disabled" : ""}>${i}</button>`;
+        if (!songName) return alert("請輸入歌名");
+
+        const newSong = {
+            name: songName,
+            bpm: songBpm,
+            lang: songLang,
+            style: songStyle
+        };
+        
+        let result;
+        if (songId) {
+            result = await supabase
+                .from('songs')
+                .update(newSong)
+                .eq('id', songId);
+        } else {
+            result = await supabase
+                .from('songs')
+                .insert(newSong);
+        }
+
+        if (result.error) {
+            alert('儲存失敗：' + result.error.message);
+        } else {
+            clearForm();
+            loadSongs();
+        }
     }
-  }
 
-  function sortBy(key) {
-    if (sortKey === key) sortAsc = !sortAsc;
-    else { sortKey = key; sortAsc = true; }
-    render();
-  }
+    // ✏️ 編輯歌曲
+    function editSong(id) {
+        const song = songs.find(s => s.id === id);
+        if (!song) return;
+        document.getElementById("songId").value = song.id;
+        document.getElementById("songName").value = song.name;
+        document.getElementById("songBpm").value = song.bpm;
+        document.getElementById("songLang").value = song.lang;
+        document.getElementById("songStyle").value = song.style;
+    }
 
-  function gotoPage(page) {
-    currentPage = page;
-    render();
-  }
+    // 🗑 刪除歌曲
+    async function deleteSong(id) {
+        if (!confirm("確定要刪除嗎？")) return;
+        
+        const { error } = await supabase
+            .from('songs')
+            .delete()
+            .eq('id', id);
+        
+        if (error) {
+            alert('刪除失敗：' + error.message);
+        } else {
+            loadSongs();
+        }
+    }
 
-  window.onload = loadSongs;
+    // 🧹 清空表單
+    function clearForm() {
+        document.getElementById("songId").value = "";
+        document.getElementById("songName").value = "";
+        document.getElementById("songBpm").value = "";
+        document.getElementById("songLang").value = "中文";
+        document.getElementById("songStyle").value = "情歌";
+    }
+
+    // 🎨 渲染歌曲清單（與之前相同）
+    function render() {
+        const search = document.getElementById("search").value.toLowerCase().trim();
+        const filterLang = document.getElementById("filterLang").value.toLowerCase().trim();
+        const filterStyle = document.getElementById("filterStyle").value.toLowerCase().trim();
+        const filterBpm = document.getElementById("filterBpm").value;
+
+        let filtered = songs.filter(s => {
+            let ok = true;
+            const name = (s.name || "").toLowerCase().trim();
+            const lang = (s.lang || "").toLowerCase().trim();
+            const style = (s.style || "").toLowerCase().trim();
+            const bpm = Number(s.bpm) || 0;
+            if (search && !(name.includes(search) || lang.includes(search) || style.includes(search))) ok = false;
+            if (filterLang && lang !== filterLang) ok = false;
+            if (filterStyle && style !== filterStyle) ok = false;
+            if (filterBpm) {
+                const [min, max] = filterBpm.split("–").map(Number);
+                if (!(bpm >= min && bpm <= max)) ok = false;
+            }
+            return ok;
+        });
+
+        if (sortKey) {
+            filtered.sort((a, b) => {
+                if (a[sortKey] < b[sortKey]) return sortAsc ? -1 : 1;
+                if (a[sortKey] > b[sortKey]) return sortAsc ? 1 : -1;
+                return 0;
+            });
+        }
+
+        const totalPages = Math.ceil(filtered.length / pageSize);
+        if (currentPage > totalPages) currentPage = totalPages || 1;
+        const start = (currentPage - 1) * pageSize;
+        const pageData = filtered.slice(start, start + pageSize);
+        const tbody = document.getElementById("songTable");
+        tbody.innerHTML = "";
+        if (pageData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5">查無符合條件的歌曲。</td></tr>`;
+        } else {
+            pageData.forEach(s => {
+                const row = `<tr>
+                    <td>${s.name}</td>
+                    <td>${s.bpm}</td>
+                    <td>${s.lang}</td>
+                    <td>${s.style}</td>
+                    <td>
+                        <button onclick="editSong('${s.id}')">✏️ 編輯</button>
+                        <button onclick="deleteSong('${s.id}')">🗑 刪除</button>
+                    </td>
+                </tr>`;
+                tbody.insertAdjacentHTML("beforeend", row);
+            });
+        }
+
+        const pagination = document.getElementById("pagination");
+        pagination.innerHTML = "";
+        for (let i = 1; i <= totalPages; i++) {
+            pagination.innerHTML += `<button onclick="gotoPage(${i})" ${i === currentPage ? "disabled" : ""}>${i}</button>`;
+        }
+    }
+
+    function sortBy(key) {
+        if (sortKey === key) sortAsc = !sortAsc;
+        else { sortKey = key; sortAsc = true; }
+        render();
+    }
+
+    function gotoPage(page) {
+        currentPage = page;
+        render();
+    }
+
+    window.onload = loadSongs;
 </script>
